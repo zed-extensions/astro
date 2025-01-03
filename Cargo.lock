@@ -312,7 +312,7 @@ dependencies = [
 
 [[package]]
 name = "zed_astro"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "serde",
  "zed_extension_api",
