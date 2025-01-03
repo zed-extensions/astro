@@ -1,0 +1,11 @@
+#
+# zed-astro
+#
+
+*.wasm
+
+#
+# Rust
+#
+
+/target
