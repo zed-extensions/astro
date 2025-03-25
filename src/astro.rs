@@ -181,25 +181,29 @@ impl zed::Extension for AstroExtension {
         })))
     }
 
-    fn additional_language_server_workspace_configuration(
+    fn language_server_additional_workspace_configuration(
         &mut self,
         language_server_id: &zed::LanguageServerId,
+        target_language_server_id: &zed::LanguageServerId,
         worktree: &zed::Worktree,
     ) -> Result<Option<serde_json::Value>> {
-        let server_path = self.server_script_path(language_server_id, worktree)?;
-        Ok(Some(serde_json::json!({
-            "vtsls": {
-                "vtsls": {
-                    "tsserver": {
-                        "globalPlugins": [{
-                            "name": "@astrojs/ts-plugin",
-                            "location": server_path,
-                            "enableForWorkspaceTypeScriptVersions": true
-                        }]
-                    }
-                },
+        match target_language_server_id.as_ref() {
+            "vtsls" => {
+                let server_path = self.server_script_path(language_server_id, worktree)?;
+                Ok(Some(serde_json::json!({
+                    "vtsls": {
+                        "tsserver": {
+                            "globalPlugins": [{
+                                "name": "@astrojs/ts-plugin",
+                                "location": server_path,
+                                "enableForWorkspaceTypeScriptVersions": true
+                            }]
+                        }
+                    },
+                })))
             }
-        })))
+            _ => Ok(None),
+        }
     }
 }
 
