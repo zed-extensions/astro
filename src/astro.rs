@@ -135,8 +135,30 @@ impl AstroExtension {
         } else {
             println!("ts-plugin already installed");
         }
-
         Ok(())
+    }
+
+    fn get_ts_plugin_root_path(&self, worktree: &zed::Worktree) -> Result<Option<String>> {
+        let package_json = worktree.read_text_file("package.json")?;
+        let package_json: PackageJson = serde_json::from_str(&package_json)
+            .map_err(|err| format!("failed to parse package.json: {err}"))?;
+
+        let has_local_plugin = package_json
+            .dev_dependencies
+            .contains_key(TS_PLUGIN_PACKAGE_NAME)
+            || package_json
+                .dependencies
+                .contains_key(TS_PLUGIN_PACKAGE_NAME);
+
+        if has_local_plugin {
+            println!("Using local installation of {TS_PLUGIN_PACKAGE_NAME}");
+            return Ok(None);
+        }
+
+        println!("Using global installation of {TS_PLUGIN_PACKAGE_NAME}");
+        Ok(Some(
+            env::current_dir().unwrap().to_string_lossy().to_string(),
+        ))
     }
 }
 
@@ -183,25 +205,22 @@ impl zed::Extension for AstroExtension {
 
     fn language_server_additional_workspace_configuration(
         &mut self,
-        language_server_id: &zed::LanguageServerId,
+        _language_server_id: &zed::LanguageServerId,
         target_language_server_id: &zed::LanguageServerId,
         worktree: &zed::Worktree,
     ) -> Result<Option<serde_json::Value>> {
         match target_language_server_id.as_ref() {
-            "vtsls" => {
-                let server_path = self.server_script_path(language_server_id, worktree)?;
-                Ok(Some(serde_json::json!({
-                    "vtsls": {
-                        "tsserver": {
-                            "globalPlugins": [{
-                                "name": "@astrojs/ts-plugin",
-                                "location": server_path,
-                                "enableForWorkspaceTypeScriptVersions": true
-                            }]
-                        }
-                    },
-                })))
-            }
+            "vtsls" => Ok(Some(serde_json::json!({
+                "vtsls": {
+                    "tsserver": {
+                        "globalPlugins": [{
+                            "name": "@astrojs/ts-plugin",
+                            "location": self.get_ts_plugin_root_path(worktree)?.unwrap_or_else(|| worktree.root_path()),
+                            "enableForWorkspaceTypeScriptVersions": true
+                        }]
+                    }
+                },
+            }))),
             _ => Ok(None),
         }
     }
