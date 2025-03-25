@@ -8,6 +8,7 @@ const SERVER_PATH: &str = "node_modules/@astrojs/language-server/bin/nodeServer.
 const PACKAGE_NAME: &str = "@astrojs/language-server";
 
 const TYPESCRIPT_PACKAGE_NAME: &str = "typescript";
+const TS_PLUGIN_PACKAGE_NAME: &str = "@astrojs/ts-plugin";
 
 /// The relative path to TypeScript's SDK.
 const TYPESCRIPT_TSDK_PATH: &str = "node_modules/typescript/lib";
@@ -39,6 +40,7 @@ impl AstroExtension {
         let server_exists = self.server_exists();
         if self.did_find_server && server_exists {
             self.install_typescript_if_needed(worktree)?;
+            self.install_ts_plugin_if_needed()?;
             return Ok(SERVER_PATH.to_string());
         }
 
@@ -73,6 +75,7 @@ impl AstroExtension {
         }
 
         self.install_typescript_if_needed(worktree)?;
+        self.install_ts_plugin_if_needed()?;
         self.did_find_server = true;
         Ok(SERVER_PATH.to_string())
     }
@@ -121,6 +124,20 @@ impl AstroExtension {
 
         Ok(())
     }
+
+    fn install_ts_plugin_if_needed(&mut self) -> Result<()> {
+        let installed_plugin_version = zed::npm_package_installed_version(TS_PLUGIN_PACKAGE_NAME)?;
+        let latest_plugin_version = zed::npm_package_latest_version(TS_PLUGIN_PACKAGE_NAME)?;
+
+        if installed_plugin_version.as_ref() != Some(&latest_plugin_version) {
+            println!("installing {TS_PLUGIN_PACKAGE_NAME}@{latest_plugin_version}");
+            zed::npm_install_package(TS_PLUGIN_PACKAGE_NAME, &latest_plugin_version)?;
+        } else {
+            println!("ts-plugin already installed");
+        }
+
+        Ok(())
+    }
 }
 
 impl zed::Extension for AstroExtension {
@@ -160,6 +177,27 @@ impl zed::Extension for AstroExtension {
             "provideFormatter": true,
             "typescript": {
                 "tsdk": self.typescript_tsdk_path
+            }
+        })))
+    }
+
+    fn additional_language_server_workspace_configuration(
+        &mut self,
+        language_server_id: &zed::LanguageServerId,
+        worktree: &zed::Worktree,
+    ) -> Result<Option<serde_json::Value>> {
+        let server_path = self.server_script_path(language_server_id, worktree)?;
+        Ok(Some(serde_json::json!({
+            "vtsls": {
+                "vtsls": {
+                    "tsserver": {
+                        "globalPlugins": [{
+                            "name": "@astrojs/ts-plugin",
+                            "location": server_path,
+                            "enableForWorkspaceTypeScriptVersions": true
+                        }]
+                    }
+                },
             }
         })))
     }
