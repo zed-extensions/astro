@@ -203,6 +203,23 @@ impl zed::Extension for AstroExtension {
         })))
     }
 
+    fn language_server_additional_initialization_options(
+        &mut self,
+        _language_server_id: &zed::LanguageServerId,
+        target_language_server_id: &zed::LanguageServerId,
+        worktree: &zed::Worktree,
+    ) -> Result<Option<serde_json::Value>> {
+        match target_language_server_id.as_ref() {
+            "typescript-language-server" => Ok(Some(serde_json::json!({
+                "plugins": [{
+                    "name": "@astrojs/ts-plugin",
+                    "location": self.get_ts_plugin_root_path(worktree)?.unwrap_or_else(|| worktree.root_path()),
+                }],
+            }))),
+            _ => Ok(None),
+        }
+    }
+
     fn language_server_additional_workspace_configuration(
         &mut self,
         _language_server_id: &zed::LanguageServerId,
