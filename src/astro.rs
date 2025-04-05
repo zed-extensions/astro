@@ -8,6 +8,7 @@ const SERVER_PATH: &str = "node_modules/@astrojs/language-server/bin/nodeServer.
 const PACKAGE_NAME: &str = "@astrojs/language-server";
 
 const TYPESCRIPT_PACKAGE_NAME: &str = "typescript";
+const TS_PLUGIN_PACKAGE_NAME: &str = "@astrojs/ts-plugin";
 
 /// The relative path to TypeScript's SDK.
 const TYPESCRIPT_TSDK_PATH: &str = "node_modules/typescript/lib";
@@ -39,6 +40,7 @@ impl AstroExtension {
         let server_exists = self.server_exists();
         if self.did_find_server && server_exists {
             self.install_typescript_if_needed(worktree)?;
+            self.install_ts_plugin_if_needed()?;
             return Ok(SERVER_PATH.to_string());
         }
 
@@ -73,6 +75,7 @@ impl AstroExtension {
         }
 
         self.install_typescript_if_needed(worktree)?;
+        self.install_ts_plugin_if_needed()?;
         self.did_find_server = true;
         Ok(SERVER_PATH.to_string())
     }
@@ -120,6 +123,42 @@ impl AstroExtension {
 
         Ok(())
     }
+
+    fn install_ts_plugin_if_needed(&mut self) -> Result<()> {
+        let installed_plugin_version = zed::npm_package_installed_version(TS_PLUGIN_PACKAGE_NAME)?;
+        let latest_plugin_version = zed::npm_package_latest_version(TS_PLUGIN_PACKAGE_NAME)?;
+
+        if installed_plugin_version.as_ref() != Some(&latest_plugin_version) {
+            println!("installing {TS_PLUGIN_PACKAGE_NAME}@{latest_plugin_version}");
+            zed::npm_install_package(TS_PLUGIN_PACKAGE_NAME, &latest_plugin_version)?;
+        } else {
+            println!("ts-plugin already installed");
+        }
+        Ok(())
+    }
+
+    fn get_ts_plugin_root_path(&self, worktree: &zed::Worktree) -> Result<Option<String>> {
+        let package_json = worktree.read_text_file("package.json")?;
+        let package_json: PackageJson = serde_json::from_str(&package_json)
+            .map_err(|err| format!("failed to parse package.json: {err}"))?;
+
+        let has_local_plugin = package_json
+            .dev_dependencies
+            .contains_key(TS_PLUGIN_PACKAGE_NAME)
+            || package_json
+                .dependencies
+                .contains_key(TS_PLUGIN_PACKAGE_NAME);
+
+        if has_local_plugin {
+            println!("Using local installation of {TS_PLUGIN_PACKAGE_NAME}");
+            return Ok(None);
+        }
+
+        println!("Using global installation of {TS_PLUGIN_PACKAGE_NAME}");
+        Ok(Some(
+            env::current_dir().unwrap().to_string_lossy().to_string(),
+        ))
+    }
 }
 
 impl zed::Extension for AstroExtension {
@@ -160,6 +199,45 @@ impl zed::Extension for AstroExtension {
                 "tsdk": self.typescript_tsdk_path
             }
         })))
+    }
+
+    fn language_server_additional_initialization_options(
+        &mut self,
+        _language_server_id: &zed::LanguageServerId,
+        target_language_server_id: &zed::LanguageServerId,
+        worktree: &zed::Worktree,
+    ) -> Result<Option<serde_json::Value>> {
+        match target_language_server_id.as_ref() {
+            "typescript-language-server" => Ok(Some(serde_json::json!({
+                "plugins": [{
+                    "name": "@astrojs/ts-plugin",
+                    "location": self.get_ts_plugin_root_path(worktree)?.unwrap_or_else(|| worktree.root_path()),
+                }],
+            }))),
+            _ => Ok(None),
+        }
+    }
+
+    fn language_server_additional_workspace_configuration(
+        &mut self,
+        _language_server_id: &zed::LanguageServerId,
+        target_language_server_id: &zed::LanguageServerId,
+        worktree: &zed::Worktree,
+    ) -> Result<Option<serde_json::Value>> {
+        match target_language_server_id.as_ref() {
+            "vtsls" => Ok(Some(serde_json::json!({
+                "vtsls": {
+                    "tsserver": {
+                        "globalPlugins": [{
+                            "name": "@astrojs/ts-plugin",
+                            "location": self.get_ts_plugin_root_path(worktree)?.unwrap_or_else(|| worktree.root_path()),
+                            "enableForWorkspaceTypeScriptVersions": true
+                        }]
+                    }
+                },
+            }))),
+            _ => Ok(None),
+        }
     }
 }
 
