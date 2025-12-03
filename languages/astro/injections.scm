@@ -19,3 +19,8 @@
 (style_element
   (raw_text) @content
   (#set! "language" "css"))
+
+; Inject comment language for TODO, FIXME, etc. highlighting
+  ((comment) @content
+    (#set! injection.language "comment"))
+  
