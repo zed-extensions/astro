@@ -101,7 +101,6 @@ impl AstroExtension {
             .typescript_exists_for_worktree(worktree)
             .unwrap_or_default()
         {
-            println!("found local TypeScript installation at '{TYPESCRIPT_TSDK_PATH}'");
             return Ok(());
         }
 
@@ -110,10 +109,7 @@ impl AstroExtension {
         let latest_typescript_version = zed::npm_package_latest_version(TYPESCRIPT_PACKAGE_NAME)?;
 
         if installed_typescript_version.as_ref() != Some(&latest_typescript_version) {
-            println!("installing {TYPESCRIPT_PACKAGE_NAME}@{latest_typescript_version}");
             zed::npm_install_package(TYPESCRIPT_PACKAGE_NAME, &latest_typescript_version)?;
-        } else {
-            println!("typescript already installed");
         }
 
         self.typescript_tsdk_path = env::current_dir()
@@ -130,11 +126,9 @@ impl AstroExtension {
         let latest_plugin_version = zed::npm_package_latest_version(TS_PLUGIN_PACKAGE_NAME)?;
 
         if installed_plugin_version.as_ref() != Some(&latest_plugin_version) {
-            println!("installing {TS_PLUGIN_PACKAGE_NAME}@{latest_plugin_version}");
             zed::npm_install_package(TS_PLUGIN_PACKAGE_NAME, &latest_plugin_version)?;
-        } else {
-            println!("ts-plugin already installed");
         }
+
         Ok(())
     }
 
@@ -151,11 +145,9 @@ impl AstroExtension {
                 .contains_key(TS_PLUGIN_PACKAGE_NAME);
 
         if has_local_plugin {
-            println!("Using local installation of {TS_PLUGIN_PACKAGE_NAME}");
             return Ok(None);
         }
 
-        println!("Using global installation of {TS_PLUGIN_PACKAGE_NAME}");
         Ok(Some(
             env::current_dir().unwrap().to_string_lossy().to_string(),
         ))
