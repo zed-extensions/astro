@@ -775,7 +775,7 @@ dependencies = [
 
 [[package]]
 name = "zed_astro"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "serde",
  "zed_extension_api",
