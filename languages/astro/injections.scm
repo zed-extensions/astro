@@ -52,3 +52,6 @@
   (raw_text) @injection.content
   (#not-match? @_start_tag "lang=")
   (#set! injection.language "css"))
+
+((comment) @injection.content
+  (#set! injection.language "comment"))
