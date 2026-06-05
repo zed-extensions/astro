@@ -28,6 +28,17 @@
 (style_element
   (start_tag
     (attribute
+      (attribute_name) @_sass_attr
+      (quoted_attribute_value
+        (attribute_value) @_sass_value)))
+  (raw_text) @injection.content
+  (#eq? @_sass_attr "lang")
+  (#eq? @_sass_value "sass")
+  (#set! injection.language "sass"))
+
+(style_element
+  (start_tag
+    (attribute
       (attribute_name) @_less_attr
       (quoted_attribute_value
         (attribute_value) @_less_value)))
