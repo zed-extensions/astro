@@ -777,6 +777,7 @@ dependencies = [
 name = "zed_astro"
 version = "0.1.11"
 dependencies = [
+ "semver",
  "serde",
  "zed_extension_api",
 ]

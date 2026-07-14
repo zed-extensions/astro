@@ -8,6 +8,7 @@ const SERVER_PATH: &str = "node_modules/@astrojs/language-server/bin/nodeServer.
 const PACKAGE_NAME: &str = "@astrojs/language-server";
 
 const TYPESCRIPT_PACKAGE_NAME: &str = "typescript";
+const TYPESCRIPT_PACKAGE_VERSION: &str = "6.0.3";
 const TS_PLUGIN_PACKAGE_NAME: &str = "@astrojs/ts-plugin";
 
 /// The relative path to TypeScript's SDK.
@@ -89,11 +90,26 @@ impl AstroExtension {
         let dev_dependencies = &package_json.dev_dependencies;
         let dependencies = &package_json.dependencies;
 
+        let pinned_typescript_version = semver::Version::parse(TYPESCRIPT_PACKAGE_VERSION)
+            .map_err(|err| format!("failed to parse pinned typescript version: {err}"))?;
+
         // Since the extension is not allowed to read the filesystem within the project
         // except through the worktree (which does not contains `node_modules`), we check
         // the `package.json` to see if `typescript` is listed in the dependencies.
-        Ok(dev_dependencies.contains_key(TYPESCRIPT_PACKAGE_NAME)
-            || dependencies.contains_key(TYPESCRIPT_PACKAGE_NAME))
+        //
+        // A dependency only counts if its version is at most the pinned version,
+        // otherwise we fall back to installing the pinned version ourselves.
+        let spec_matches_pinned = |spec: &String| {
+            let spec = spec.trim().trim_start_matches(['^', '~', '=', 'v']);
+            semver::Version::parse(spec).is_ok_and(|version| version <= pinned_typescript_version)
+        };
+
+        Ok(dev_dependencies
+            .get(TYPESCRIPT_PACKAGE_NAME)
+            .is_some_and(spec_matches_pinned)
+            || dependencies
+                .get(TYPESCRIPT_PACKAGE_NAME)
+                .is_some_and(spec_matches_pinned))
     }
 
     fn install_typescript_if_needed(&mut self, worktree: &zed::Worktree) -> Result<()> {
@@ -106,10 +122,16 @@ impl AstroExtension {
 
         let installed_typescript_version =
             zed::npm_package_installed_version(TYPESCRIPT_PACKAGE_NAME)?;
-        let latest_typescript_version = zed::npm_package_latest_version(TYPESCRIPT_PACKAGE_NAME)?;
+        let pinned_typescript_version = semver::Version::parse(TYPESCRIPT_PACKAGE_VERSION)
+            .map_err(|err| format!("failed to parse pinned typescript version: {err}"))?;
 
-        if installed_typescript_version.as_ref() != Some(&latest_typescript_version) {
-            zed::npm_install_package(TYPESCRIPT_PACKAGE_NAME, &latest_typescript_version)?;
+        let needs_install = installed_typescript_version
+            .as_deref()
+            .and_then(|installed| semver::Version::parse(installed).ok())
+            .is_none_or(|installed_version| installed_version > pinned_typescript_version);
+
+        if needs_install {
+            zed::npm_install_package(TYPESCRIPT_PACKAGE_NAME, TYPESCRIPT_PACKAGE_VERSION)?;
         }
 
         self.typescript_tsdk_path = env::current_dir()
