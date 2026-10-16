@@ -1,5 +1,8 @@
 (tag_name) @tag
 
+((tag_name) @tag.component
+  (#match? @tag.component "^[A-Z]"))
+
 (erroneous_end_tag_name) @keyword
 
 (doctype) @tag.doctype
